@@ -36,7 +36,11 @@ from gemato.exceptions import (
     )
 
 try:
-    import requests
+    with warnings.catch_warnings():
+        # Disable NotOpenSSLWarning.
+        # https://github.com/urllib3/urllib3/issues/3020
+        warnings.simplefilter("ignore")
+        import requests
 except ImportError:
     requests = None
 
