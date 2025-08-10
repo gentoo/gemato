@@ -1124,15 +1124,16 @@ def test_verify_require_secure_cli(base_tree, caplog, require_secure):
 
 
 @pytest.mark.parametrize(
-    "key_var,two_sigs",
-    [("TWO_SIGNATURE_PUBLIC_KEYS", True),
-     ("VALID_PUBLIC_KEY", False),
+    "key_vars,two_sigs",
+    [(["TWO_SIGNATURE_PUBLIC_KEYS"], True),
+     (["VALID_PUBLIC_KEY", "OTHER_VALID_PUBLIC_KEY"], False),
      ])
-def test_verify_detached(tmp_path, key_var, two_sigs):
+def test_verify_detached(tmp_path, key_vars, two_sigs):
     try:
         with MockedSystemGPGEnvironment() as openpgp_env:
-            with io.BytesIO(globals()[key_var]) as f:
-                openpgp_env.import_key(f)
+            for key_var in key_vars:
+                with io.BytesIO(globals()[key_var]) as f:
+                    openpgp_env.import_key(f)
 
             with open(tmp_path / "data.bin", "wb") as f:
                 f.write(b"\r\n".join(COMMON_MANIFEST_TEXT.encode("utf8")
@@ -1149,3 +1150,140 @@ def test_verify_detached(tmp_path, key_var, two_sigs):
                              expect_both=two_sigs)
     except OpenPGPNoImplementation as e:
         pytest.skip(str(e))
+
+
+KEY_1 = """
+-----BEGIN PGP PRIVATE KEY BLOCK-----
+
+lFgEaJkEURYJKwYBBAHaRw8BAQdAQ91ZR+F+CCLnmHJy008X6p9RyNLgKs/XRTKj
+eTDz3V8AAQDpk6bWD7QUexxhtA2NCdgu45qMc4QtWfkZW4IR6hGydQ7NtBFmb28g
+PGZvb0BiYXIuY29tPoiZBBMWCgBBFiEE4QPsbQDv3Z/aQPfVRReIjpIhebEFAmiZ
+BFECGwMFCQWjmoAFCwkIBwICIgIGFQoJCAsCBBYCAwECHgcCF4AACgkQRReIjpIh
+ebHFpAEAy4L87gG5ZQEkwIF0t+Kq0i2IAniQm0avKNycbbBBPzQA/RbvPrftzw2X
+BSH4GICiBW2GhgmVdvUnFD9rCs2ovUENnF0EaJkEURIKKwYBBAGXVQEFAQEHQAY0
+5aR1C23WufHllwhudQuV4CHgyoGdCS7bedp21JJEAwEIBwAA/2nxe/X8ZHdFmsTs
+JAehMC8kVh8Y7K9PzCRXXoSKDDKID26IfgQYFgoAJhYhBOED7G0A792f2kD31UUX
+iI6SIXmxBQJomQRRAhsMBQkFo5qAAAoJEEUXiI6SIXmxErQA/3ucnFy3Gc7eYJ/w
+zulvfmbAs3V7aoI1e1/sUK1gI2N3AP49kkaorEkGrzCdTNhS/kwwCL2yntiOx+hT
+ZBeRiRRoBJRYBGiZBH0WCSsGAQQB2kcPAQEHQBmiq4PuGOfoSmFoG0/Ia6qR8Yda
+pMb7Krck/kxKFNa1AAD8DTDDmM/7NBoVaT5Pc6J8QrCwn16H94MKSfArbF3+dNwQ
+bbQRYmF6IDxiYXpAYmFyLmNvbT6ImQQTFgoAQRYhBBmmAQvVnSVkZ1SQBqwmOzH1
+yKeFBQJomQR9AhsDBQkFo5qABQsJCAcCAiICBhUKCQgLAgQWAgMBAh4HAheAAAoJ
+EKwmOzH1yKeFaqsBAKof2yA0tdHIMh9sPMtxBWfVQ+j4AVXppQoRt7ESOg3PAP9q
+kSN0qFaIYEj4KsE0ip/oxakBRUiAzqrAL295y91xCpxdBGiZBH0SCisGAQQBl1UB
+BQEBB0A3yK3Kt9FjQLvQ2c6f3UfSUzc4roLFmV3LwmyJHlKcOAMBCAcAAP9ftFEX
+FIY/DToq+fmU01jQIlk9lmC304Lhqnc8QScLyA94iH4EGBYKACYWIQQZpgEL1Z0l
+ZGdUkAasJjsx9cinhQUCaJkEfQIbDAUJBaOagAAKCRCsJjsx9cinhdt5AQDg+NQO
+seFac+5ScMirZoclhnS+YQD3WrVg9mhvjY2JwAEAzcBMDzD5Ic144re9ePKKz2Kr
+vbY31vWDmqwOHRdIvAM=
+=Ipxt
+-----END PGP PRIVATE KEY BLOCK-----
+"""
+
+KEY_2 = """
+-----BEGIN PGP PRIVATE KEY BLOCK-----
+
+lFgEaJkEfRYJKwYBBAHaRw8BAQdAGaKrg+4Y5+hKYWgbT8hrqpHxh1qkxvsqtyT+
+TEoU1rUAAPwNMMOYz/s0GhVpPk9zonxCsLCfXof3gwpJ8CtsXf503BBttBFiYXog
+PGJhekBiYXIuY29tPoiZBBMWCgBBFiEEGaYBC9WdJWRnVJAGrCY7MfXIp4UFAmiZ
+BH0CGwMFCQWjmoAFCwkIBwICIgIGFQoJCAsCBBYCAwECHgcCF4AACgkQrCY7MfXI
+p4VqqwEAqh/bIDS10cgyH2w8y3EFZ9VD6PgBVemlChG3sRI6Dc8A/2qRI3SoVohg
+SPgqwTSKn+jFqQFFSIDOqsAvb3nL3XEKnF0EaJkEfRIKKwYBBAGXVQEFAQEHQDfI
+rcq30WNAu9DZzp/dR9JTNziugsWZXcvCbIkeUpw4AwEIBwAA/1+0URcUhj8NOir5
++ZTTWNAiWT2WYLfTguGqdzxBJwvID3iIfgQYFgoAJhYhBBmmAQvVnSVkZ1SQBqwm
+OzH1yKeFBQJomQR9AhsMBQkFo5qAAAoJEKwmOzH1yKeF23kBAOD41A6x4Vpz7lJw
+yKtmhyWGdL5hAPdatWD2aG+NjYnAAQDNwEwPMPkhzXjit7148orPYqu9tjfW9YOa
+rA4dF0i8Aw==
+=1xWE
+-----END PGP PRIVATE KEY BLOCK-----
+"""
+
+SIGNED_BY_KEY_1 = """
+-----BEGIN PGP SIGNATURE-----
+
+wr0EABYKAG8FgmiZBPMJEEUXiI6SIXmxRxQAAAAAAB4AIHNhbHRAbm90YXRpb25z
+LnNlcXVvaWEtcGdwLm9yZ19FVyNmAaMT0wqkwEcf/xcwSTIwi9dXQUJilI3DNRrv
+FiEE4QPsbQDv3Z/aQPfVRReIjpIhebEAAJZVAP41CibCv9ftA/RRVxc8gUKOKmkk
+CxDKv1uMQ4Wqfn9rxgEAz25ONZuJv1j1P4HL4AuN7OvaXV9Tc13U7L4uIQWK4wfC
+vQQAFgoAbwWCaJkE8wkQrCY7MfXIp4VHFAAAAAAAHgAgc2FsdEBub3RhdGlvbnMu
+c2VxdW9pYS1wZ3Aub3Jnx0SWIs9Zx/U77+sQHS2u3vA22D86aD16w0LLpOjDYy8W
+IQQZpgEL1Z0lZGdUkAasJjsx9cinhQAAWloBAMLm3dhZcUzTTeco89Tc8gn8GMIS
++ZpIcuCiRC9JcIQ9AQDpPgEUJXJ19nJ6Ar9q0ngBmlORRrYpJNHBakBmIbFpAg==
+=ayFc
+-----END PGP SIGNATURE-----
+"""
+
+SIGNED_BY_BOTH = """
+-----BEGIN PGP SIGNATURE-----
+
+wr0EABYKAG8FgmiZBPsJEKwmOzH1yKeFRxQAAAAAAB4AIHNhbHRAbm90YXRpb25z
+LnNlcXVvaWEtcGdwLm9yZ6Z4co9tSdIQCy9jvnGVhjk4A3Jyb8pQqDUiXLQdCD4O
+FiEEGaYBC9WdJWRnVJAGrCY7MfXIp4UAAC3iAQDa3gx9548FHOzsfCUlLtFVGSKF
+zNMFsbb0M7GUmj2eJAEA7LRWEvFDbKWdZdSeXeyAJFbEfT6oL3Ct+GYnM+OQiwnC
+vQQAFgoAbwWCaJkE+wkQRReIjpIhebFHFAAAAAAAHgAgc2FsdEBub3RhdGlvbnMu
+c2VxdW9pYS1wZ3Aub3JnD6pm04j15SUqJUJzOwNyXoqrundtPTp1gT9ooLnLmWwW
+IQThA+xtAO/dn9pA99VFF4iOkiF5sQAAlXcBAN3aC1tFACsLugIX2F6L8be23oWa
+sfEqJf0AuzvMjJJFAQCNAiZEEpnZyQ2AjUXcUX5gR+kz9tIgn91+UxU/OyMDBMK9
+BAAWCgBvBYJomQT7CRCsJjsx9cinhUcUAAAAAAAeACBzYWx0QG5vdGF0aW9ucy5z
+ZXF1b2lhLXBncC5vcmeoudXzOQFEBJUOUPLtxRj92PJFjcpEs4/zmn7vOCMd4RYh
+BBmmAQvVnSVkZ1SQBqwmOzH1yKeFAABU3gEAnB2xF7tMtJUQm85x+Ky2z1KRO6e2
+/2R5fT8FZKmiGfcBAKDfC/0jDF693jcOPY12orM/jf0go+yo2s860IHimIkB
+=gerT
+-----END PGP SIGNATURE-----
+"""
+
+SIGNED_BY_NONE = """
+-----BEGIN PGP SIGNATURE-----
+
+wr0EABYKAG8FgmiZCQQJEAG8TxwWRI2eRxQAAAAAAB4AIHNhbHRAbm90YXRpb25z
+LnNlcXVvaWEtcGdwLm9yZ9yx9m4PEszsmRA/3pnVwC2INFZxMRDsYMgXhpHd90p3
+FiEEyqYxVyeWNX+BtfydAbxPHBZEjZ4AAKvZAP0YOW03MjeSssxH869W9K6AxKxj
+twP+36JheqrajLmpGgEA34IA5E63cXhpqS1eGRLM21Jxzoyz4L8TC0uRLd8kugY=
+=weYK
+-----END PGP SIGNATURE-----
+"""
+
+
+@pytest.mark.parametrize(
+    "keys, sig, expected", [
+        ([KEY_1], SIGNED_BY_KEY_1, "pass"),
+        ([KEY_1], SIGNED_BY_BOTH, "pass"),
+        ([KEY_1, KEY_2], SIGNED_BY_KEY_1, "pass"),
+        ([KEY_1, KEY_2], SIGNED_BY_BOTH, "pass"),
+        ([KEY_2], SIGNED_BY_KEY_1, "fail"),
+        ([KEY_1, KEY_2], SIGNED_BY_NONE, "fail")
+    ],
+)
+def test_gpg_wrap_multiple_keys(keys, sig, expected):
+    keyfiles = []
+
+    for key in keys:
+        keyfile = tempfile.NamedTemporaryFile(mode="w")
+        keyfile.write(key)
+        keyfile.flush()
+        keyfiles.append(keyfile)
+
+    sigfile = tempfile.NamedTemporaryFile(mode="w")
+    sigfile.write(sig)
+    sigfile.flush()
+
+    datafile = tempfile.NamedTemporaryFile(mode="w")
+    datafile.write("hello\n")
+    datafile.flush()
+
+    args = ['gemato', 'gpg-wrap']
+
+    for keyfile in keyfiles:
+        args += ['-K', keyfile.name]
+
+    args += ['-R', '--', 'gpg', '--verify', sigfile.name, datafile.name]
+
+    try:
+        retval = gemato.cli.main(args)
+    except OpenPGPNoImplementation as e:
+        pytest.skip(str(e))
+
+    if expected == "pass":
+        assert retval == 0
+    else:
+        assert retval != 0
