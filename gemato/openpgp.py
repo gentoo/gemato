@@ -156,7 +156,6 @@ class SystemGPGEnvironment:
         prev_pub = None
         fpr = None
         ret = {}
-
         for line in out.splitlines():
             # were we expecting a fingerprint?
             if prev_pub is not None:
@@ -182,7 +181,14 @@ class SystemGPGEnvironment:
                 if fpr is None:
                     raise OpenPGPKeyListingError(
                         f'UID without key in GPG output: {line}')
-                uid = line.split(b':')[9]
+                uid_split = line.split(b":", 10)
+                uid = uid_split[9]
+                # no creation date means missing/broken self-sig
+                if not uid_split[5]:
+                    LOGGER.debug(
+                        f"list_keys(): skipping UID with missing self-sig: "
+                        f"{fpr=}, {uid=!r}")
+                    continue
                 LOGGER.debug(f'list_keys(): UID: {uid}')
                 ret[fpr].append(uid)
 
@@ -539,6 +545,14 @@ debug-level guru
                 fprs.add(line.split(b' ')[3].decode('ASCII'))
         if not fprs:
             raise OpenPGPKeyImportError("No keys imported")
+
+        imported = self.list_keys(list(fprs))
+        missing = fprs - {fpr for fpr, uids in imported.items() if uids}
+        if missing:
+            raise OpenPGPKeyImportError(
+                "Import succeeded but no valid key for fingerprints: "
+                f"{missing}"
+            )
 
         if trust:
             self._trusted_keys.update(fprs)
