@@ -24,6 +24,7 @@ from gemato.exceptions import (
     OpenPGPExpiredKeyFailure,
     OpenPGPRevokedKeyFailure,
     OpenPGPKeyImportError,
+    OpenPGPKeyListingError,
     OpenPGPKeyRefreshError,
     OpenPGPRuntimeError,
     OpenPGPUntrustedSigFailure,
@@ -808,12 +809,28 @@ def test_recursive_manifest_loader_save_submanifest(tmp_path, privkey_env):
      ('VALID_KEY_NOEMAIL', {KEY_FINGERPRINT: []}),
      ('VALID_KEY_NONUTF', {KEY_FINGERPRINT: ['gemato@example.com']}),
      ])
-def test_list_keys(openpgp_env_with_refresh, key_var, expected):
+def test_list_keys(openpgp_env, key_var, expected):
     try:
-        openpgp_env_with_refresh.import_key(io.BytesIO(globals()[key_var]))
+        openpgp_env.import_key(io.BytesIO(globals()[key_var]))
     except OpenPGPNoImplementation as e:
         pytest.skip(str(e))
-    assert openpgp_env_with_refresh.list_keys() == expected
+    assert openpgp_env.list_keys() == expected
+    assert openpgp_env.list_keys(list(expected.keys())) == expected
+
+
+def test_list_keys_empty(openpgp_env):
+    try:
+        assert openpgp_env.list_keys() == {}
+    except OpenPGPNoImplementation as e:
+        pytest.skip(str(e))
+
+
+def test_list_keys_error(openpgp_env):
+    try:
+        with pytest.raises(OpenPGPKeyListingError):
+            openpgp_env.list_keys(["zzzzz"])
+    except OpenPGPNoImplementation as e:
+        pytest.skip(str(e))
 
 
 @pytest.fixture(scope='module')

@@ -2,6 +2,8 @@
 # (c) 2017-2024 Michał Górny
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 import base64
 import dataclasses
 import datetime
@@ -137,6 +139,60 @@ class SystemGPGEnvironment:
 
         raise NotImplementedError(
             'import_key() is not implemented by this OpenPGP provider')
+
+    def list_keys(self, key_ids: list[str] = []) -> dict[str, list[str]]:
+        """
+        List fingerprints and UIDs of specified keys or all keys in keyring
+
+        Returns a mapping from fingerprint (as a string) to an iterable
+        of UIDs.
+        """
+
+        exitst, out, err = self._spawn_gpg(
+            [GNUPG, '--batch', '--with-colons', '--list-keys', *key_ids],
+            raise_on_error=OpenPGPKeyListingError)
+
+        prev_pub = None
+        fpr = None
+        ret = {}
+
+        for line in out.splitlines():
+            # were we expecting a fingerprint?
+            if prev_pub is not None:
+                if line.startswith(b'fpr:'):
+                    fpr = line.split(b':')[9].decode('ASCII')
+                    if not fpr.endswith(prev_pub):
+                        raise OpenPGPKeyListingError(
+                            f'Incorrect fingerprint {fpr} for key '
+                            f'{prev_pub}')
+                    LOGGER.debug(
+                        f'list_keys(): fingerprint: {fpr}')
+                    ret[fpr] = []
+                    prev_pub = None
+                else:
+                    raise OpenPGPKeyListingError(
+                        f'No fingerprint in GPG output, instead got: '
+                        f'{line}')
+            elif line.startswith(b'pub:'):
+                # wait for the fingerprint
+                prev_pub = line.split(b':')[4].decode('ASCII')
+                LOGGER.debug(f'list_keys(): keyid: {prev_pub}')
+            elif line.startswith(b'uid:'):
+                if fpr is None:
+                    raise OpenPGPKeyListingError(
+                        f'UID without key in GPG output: {line}')
+                uid = line.split(b':')[9]
+                _, addr = email.utils.parseaddr(
+                    uid.decode('utf8', errors='replace'))
+                if '@' in addr:
+                    LOGGER.debug(f'list_keys(): UID: {addr}')
+                    ret[fpr].append(addr)
+                else:
+                    LOGGER.debug(
+                        f'list_keys(): ignoring UID without mail: '
+                        f'{uid!r}')
+
+        return ret
 
     def refresh_keys(self, allow_wkd=True, keyserver=None):
         """
@@ -501,60 +557,6 @@ debug-level guru
                 [GNUPG, '--batch', '--import-ownertrust'],
                 ownertrust,
                 raise_on_error=OpenPGPKeyImportError)
-
-    def list_keys(self):
-        """
-        List fingerprints and UIDs of all keys in keyring
-
-        Returns a mapping from fingerprint (as a string) to an iterable
-        of UIDs.
-        """
-
-        exitst, out, err = self._spawn_gpg(
-            [GNUPG, '--batch', '--with-colons', '--list-keys'],
-            raise_on_error=OpenPGPKeyListingError)
-
-        prev_pub = None
-        fpr = None
-        ret = {}
-
-        for line in out.splitlines():
-            # were we expecting a fingerprint?
-            if prev_pub is not None:
-                if line.startswith(b'fpr:'):
-                    fpr = line.split(b':')[9].decode('ASCII')
-                    if not fpr.endswith(prev_pub):
-                        raise OpenPGPKeyListingError(
-                            f'Incorrect fingerprint {fpr} for key '
-                            f'{prev_pub}')
-                    LOGGER.debug(
-                        f'list_keys(): fingerprint: {fpr}')
-                    ret[fpr] = []
-                    prev_pub = None
-                else:
-                    raise OpenPGPKeyListingError(
-                        f'No fingerprint in GPG output, instead got: '
-                        f'{line}')
-            elif line.startswith(b'pub:'):
-                # wait for the fingerprint
-                prev_pub = line.split(b':')[4].decode('ASCII')
-                LOGGER.debug(f'list_keys(): keyid: {prev_pub}')
-            elif line.startswith(b'uid:'):
-                if fpr is None:
-                    raise OpenPGPKeyListingError(
-                        f'UID without key in GPG output: {line}')
-                uid = line.split(b':')[9]
-                _, addr = email.utils.parseaddr(
-                    uid.decode('utf8', errors='replace'))
-                if '@' in addr:
-                    LOGGER.debug(f'list_keys(): UID: {addr}')
-                    ret[fpr].append(addr)
-                else:
-                    LOGGER.debug(
-                        f'list_keys(): ignoring UID without mail: '
-                        f'{uid!r}')
-
-        return ret
 
     def refresh_keys_wkd(self):
         """
