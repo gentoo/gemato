@@ -155,7 +155,6 @@ class SystemGPGEnvironment:
         prev_pub = None
         fpr = None
         ret = {}
-        invalid = set()
 
         for line in out.splitlines():
             # were we expecting a fingerprint?
@@ -182,15 +181,7 @@ class SystemGPGEnvironment:
                 if fpr is None:
                     raise OpenPGPKeyListingError(
                         f'UID without key in GPG output: {line}')
-                uid_split = line.split(b":", 10)
-                uid = uid_split[9]
-                # no creation date means missing/broken self-sig
-                if not uid_split[5]:
-                    LOGGER.debug(
-                        f"list_keys(): rejecting key with missing self-sig: "
-                        f"{fpr=}, {uid=!r}")
-                    invalid.add(fpr)
-                    continue
+                uid = line.split(b':')[9]
                 _, addr = email.utils.parseaddr(
                     uid.decode('utf8', errors='replace'))
                 if '@' in addr:
@@ -200,11 +191,6 @@ class SystemGPGEnvironment:
                     LOGGER.debug(
                         f'list_keys(): ignoring UID without mail: '
                         f'{uid!r}')
-
-        # reject keys that have invalid/missing self-sigs
-        # to make FreePG match GnuPG behavior
-        for fpr in invalid:
-            del ret[fpr]
 
         return ret
 
@@ -559,21 +545,13 @@ debug-level guru
             keyfile.read(),
             raise_on_error=OpenPGPKeyImportError)
 
-        fprs = set()
-        for line in out.splitlines():
-            if line.startswith(b"[GNUPG:] IMPORT_OK"):
-                fprs.add(line.split(b" ")[3].decode("ASCII"))
-
-        imported = self.list_keys(list(fprs))
-        missing = fprs - set(imported)
-        if missing:
-            raise OpenPGPKeyImportError(
-                "Import succeeded but no valid key for fingerprints: "
-                f"{missing}"
-            )
-
         if trust:
+            fprs = set()
+            for line in out.splitlines():
+                if line.startswith(b'[GNUPG:] IMPORT_OK'):
+                    fprs.add(line.split(b' ')[3].decode('ASCII'))
             self._trusted_keys.update(fprs)
+
             ownertrust = ''.join(f'{fpr}:6:\n' for fpr in fprs).encode('utf8')
             exitst, out, err = self._spawn_gpg(
                 [GNUPG, '--batch', '--import-ownertrust'],
