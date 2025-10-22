@@ -545,13 +545,15 @@ debug-level guru
             keyfile.read(),
             raise_on_error=OpenPGPKeyImportError)
 
-        if trust:
-            fprs = set()
-            for line in out.splitlines():
-                if line.startswith(b'[GNUPG:] IMPORT_OK'):
-                    fprs.add(line.split(b' ')[3].decode('ASCII'))
-            self._trusted_keys.update(fprs)
+        fprs = set()
+        for line in out.splitlines():
+            if line.startswith(b'[GNUPG:] IMPORT_OK'):
+                fprs.add(line.split(b' ')[3].decode('ASCII'))
+        if not fprs:
+            raise OpenPGPKeyImportError("No keys imported")
 
+        if trust:
+            self._trusted_keys.update(fprs)
             ownertrust = ''.join(f'{fpr}:6:\n' for fpr in fprs).encode('utf8')
             exitst, out, err = self._spawn_gpg(
                 [GNUPG, '--batch', '--import-ownertrust'],
