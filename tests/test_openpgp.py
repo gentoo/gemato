@@ -1,8 +1,7 @@
 # gemato: OpenPGP signature support tests
-# (c) 2017-2023 Michał Górny
+# (c) 2017-2025 Michał Górny
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-import base64
 import contextlib
 import datetime
 import io
@@ -43,6 +42,7 @@ from gemato.openpgp import (
 from gemato.recursiveloader import ManifestRecursiveLoader
 
 from tests.keydata import (
+    _, F, T,
     PRIVATE_KEY_ID, KEY_FINGERPRINT, OTHER_KEY_FINGERPRINT, VALID_PUBLIC_KEY,
     VALID_KEY_NOEMAIL, VALID_KEY_NONUTF, COMBINED_PUBLIC_KEYS,
     VALID_KEY_SUBKEY, PRIVATE_KEY, EXPIRED_PUBLIC_KEY, REVOKED_PUBLIC_KEY,
@@ -56,185 +56,16 @@ from tests.test_recursiveloader import INSECURE_HASH_TESTS
 from tests.testutil import HKPServer
 
 
-MALFORMED_PUBLIC_KEY = b'''
------BEGIN PGP PUBLIC KEY BLOCK-----
-
-mQENBFnwXJMBCACgaTVz+d10TGL9zR920sb0GBFsitAJ5ZFzO4E0cg3SHhwI+reM
-JQ6LLKmHowY/E1dl5FBbnJoRMxXP7/eScQ7HlhYj1gMPN5XiS2pkPwVkmJKBDV42
-DLwoytC+ot0frRTJvSdEPCX81BNMgFiBSpkeZfXqb9XmU03bh6mFnrdd4CsHpTQG
-csVXHK8QKhaxuqmHTALdpSzKCb/r0N/Z3sQExZhfLcBf/9UUVXj44Nwc6ooqZLRi
-zHydxwQdxNu0aOFGEBn9WTi8Slf7MfR/pF0dI8rs9w6zMzVEq0lhDPpKFGDveoGf
-g/+TpvBNXZ7DWH23GM4kID3pk4LLMc24U1PhABEBAAG0D2dlbWF0byB0ZXN0IGtl
-eYkBRgQTAQoAMBYhBIHhLBa9jc1gvhgIRRNogOcqexOEBQJZ8FyTAhsDBQsJCg0E
-AxUKCAIeAQIXgAAKCRATaIDnKnsThCnkB/0fhTH230idhlfZhFbVgTLxrj4rpsGg
-20K8HkMaWzshsONdKkqYaYuRcm2UQZ0Kg5rm9jQsGYuAnzH/7XwmOleY95ycVfBk
-je9aXF6BEoGick6C/AK5w77vd1kcBtJDrT4I7vwD4wRkyUdCkpVMVT4z4aZ7lHJ4
-ECrrrI/mg0b+sGRyHfXPvIPp7F2959L/dpbhBZDfMOFC0A9LBQBJldKFbQLg3xzX
-4tniz/BBrp7KjTOMKU0sufsedI50xc6cvCYCwJElqo86vv69klZHahE/k9nJaUAM
-jCvJNJ7pU8YnJSRTQDH0PZEupAdzDU/AhGSrBz5+Jr7N0pQIxq4duE/Q
-=r7JK
------END PGP PUBLIC KEY BLOCK-----
-'''
-
-COMMON_MANIFEST_TEXT = """\
-TIMESTAMP 2017-10-22T18:06:41Z
-MANIFEST eclass/Manifest 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-IGNORE local
-DATA myebuild-0.ebuild 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-MISC metadata.xml 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-DIST mydistfile.tar.gz 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709\
-"""
-
-SIGNED_MANIFEST = f"""
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-{COMMON_MANIFEST_TEXT}
------BEGIN PGP SIGNATURE-----
-
-iQEzBAEBCAAdFiEEgeEsFr2NzWC+GAhFE2iA5yp7E4QFAloCx+YACgkQE2iA5yp7
-E4TYrwf+JxjkVDNtvSN3HjQmdtcayLsaliw/2kqjoaQKs0lZD8+NRe7xPmwSm4bP
-XKfoouJ0+/s87vuYJpBBCjtUDA9C9yZIeRTo8+eW6XsZbRRUmUD5ylTS+FpSsUrS
-bEyYk4yZQMYrat+GQ1QBv+625nqnSDv5LZHBBZ/rG36GGlwHPbIKIishnDfdG2QQ
-zuxkqepNq4Inzp//ES7Bv4qbTzyBI//HzfY31vOgdhhs5N5Ytez3Xxv/KNOTYdi1
-ZIfqeaQ4NoefmxQunyEjT+8X2DMaEeHQni7dwjQc+FiN4ReV9aWbLo2O2cArqEHR
-mkkhTd2Auao4D2K74BePBuiZ9+eDQA==
-=khff
------END PGP SIGNATURE-----
-"""
-
-POST_EXPIRATION_SIGNED_MANIFEST = f"""
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-{COMMON_MANIFEST_TEXT}
------BEGIN PGP SIGNATURE-----
-
-iQEzBAEBCAAdFiEEgeEsFr2NzWC+GAhFE2iA5yp7E4QFAmPsj28ACgkQE2iA5yp7
-E4R0xAf8CC6uh8VMmv8xlFePEoBYEuSUtDa2hWHJv1sMn90QnszHGG6oo32g2Lje
-H9NRyjOltAG9t0siF/pf57EiKCs9B+Z9zLGYuWlK4gvkHjMHzsoTipUymm2/saEo
-AuoeZvhqNtfU0hCIJsWENtdyMb/hsJIxIOwBjVS/JT5cZlOGjhlyxVO0CS/7FsCp
-GZCeLYPdYXPw2em2DR3Q3NDuNmUY7W3WhJCL14uC+AkU64SnHc13xQ9/go6TQ2ho
-783Jm2f/4ZREYpKMvCgUJvOADSqnfY89hc6B/9JCXn+Zm8a31zgENlJ8DEhN0JMN
-le/JaXEH/AhO6xCOmk8tNQ3QXcNF5w==
-=UGgA
------END PGP SIGNATURE-----
-"""
-
-DASH_ESCAPED_SIGNED_MANIFEST = '''
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-- TIMESTAMP 2017-10-22T18:06:41Z
-- MANIFEST eclass/Manifest 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-IGNORE local
-- DATA myebuild-0.ebuild 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-MISC metadata.xml 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-- DIST mydistfile.tar.gz 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
------BEGIN PGP SIGNATURE-----
-
-iQEzBAEBCAAdFiEEgeEsFr2NzWC+GAhFE2iA5yp7E4QFAloCx+YACgkQE2iA5yp7
-E4TYrwf+JxjkVDNtvSN3HjQmdtcayLsaliw/2kqjoaQKs0lZD8+NRe7xPmwSm4bP
-XKfoouJ0+/s87vuYJpBBCjtUDA9C9yZIeRTo8+eW6XsZbRRUmUD5ylTS+FpSsUrS
-bEyYk4yZQMYrat+GQ1QBv+625nqnSDv5LZHBBZ/rG36GGlwHPbIKIishnDfdG2QQ
-zuxkqepNq4Inzp//ES7Bv4qbTzyBI//HzfY31vOgdhhs5N5Ytez3Xxv/KNOTYdi1
-ZIfqeaQ4NoefmxQunyEjT+8X2DMaEeHQni7dwjQc+FiN4ReV9aWbLo2O2cArqEHR
-mkkhTd2Auao4D2K74BePBuiZ9+eDQA==
-=khff
------END PGP SIGNATURE-----
-'''
-
-MODIFIED_SIGNED_MANIFEST = '''
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-TIMESTAMP 2017-10-22T18:06:41Z
-MANIFEST eclass/Manifest 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-IGNORE local
-DATA myebuild-0.ebuild 32
-MISC metadata.xml 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
-DIST mydistfile.tar.gz 0 MD5 d41d8cd98f00b204e9800998ecf8427e\
- SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709
------BEGIN PGP SIGNATURE-----
-
-iQEzBAEBCAAdFiEEgeEsFr2NzWC+GAhFE2iA5yp7E4QFAloCx+YACgkQE2iA5yp7
-E4TYrwf+JxjkVDNtvSN3HjQmdtcayLsaliw/2kqjoaQKs0lZD8+NRe7xPmwSm4bP
-XKfoouJ0+/s87vuYJpBBCjtUDA9C9yZIeRTo8+eW6XsZbRRUmUD5ylTS+FpSsUrS
-bEyYk4yZQMYrat+GQ1QBv+625nqnSDv5LZHBBZ/rG36GGlwHPbIKIishnDfdG2QQ
-zuxkqepNq4Inzp//ES7Bv4qbTzyBI//HzfY31vOgdhhs5N5Ytez3Xxv/KNOTYdi1
-ZIfqeaQ4NoefmxQunyEjT+8X2DMaEeHQni7dwjQc+FiN4ReV9aWbLo2O2cArqEHR
-mkkhTd2Auao4D2K74BePBuiZ9+eDQA==
-=khff
------END PGP SIGNATURE-----
-'''
-
-EXPIRED_SIGNED_MANIFEST = f"""
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-{COMMON_MANIFEST_TEXT}
------BEGIN PGP SIGNATURE-----
-
-iQE5BAEBCAAjFiEEgeEsFr2NzWC+GAhFE2iA5yp7E4QFAlnxCXcFgwABUYAACgkQ
-E2iA5yp7E4SDpQgAizTfQ6HJ1mawgElYV1LsOKGT8ivC6CAeU3Cs1E8zYpitKuy7
-Yu5WrqUgck5GkXfswxHISkV+oWzrA/j0bUV768o+fY2JmlKuc/VWeyYDGnDtgDPz
-NXYoqlQ1z3TDeaRktHcblECghf/A9Hbw0L4i0DVvDdk9APtIswgL/RmpXAQS1Bl7
-sE1aFIy8CMBf3itco7NGjPpCxRt7ckS+UIKNgzrfnS7WEXHIirykEsMYKTLfuN2u
-HSxRUCkTK1jBuP/v/rjdqUJw3LXAbjxFl9SyUX4AgCgHqgso3IZwjAprQRKNSObO
-t5pTRGhLWgdLUrs7vRB7wf7F8h4sci/YBKJRFA==
-=VGMV
------END PGP SIGNATURE-----
-"""
-
-SUBKEY_SIGNED_MANIFEST = f"""
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-{COMMON_MANIFEST_TEXT}
------BEGIN PGP SIGNATURE-----
-
-iLMEAQEIAB0WIQR+nd48vkfkN0GN90A4udL3bMgzzAUCX0UGrAAKCRA4udL3bMgz
-zH8MA/93/oNkXaA8+ZX7s8umhNMHiovdLJMna7Bl2C/tEdLfOoyp9o3lChhnB49v
-g7VRUc//lz5sDUShdUUlTYjCPGLaYf2rBZHqd5POGJOsbzu1Tmtd8uhWFWnl8Kip
-n4XmpdPvu+UdAHpQIGzKoNOEDJpZ5CzPLhYa5KgZiJhpYsDXgg==
-=lpJi
------END PGP SIGNATURE-----
-"""
-
-TWO_SIGNATURES = """
-iQFHBAABCAAxFiEEgeEsFr2NzWC+GAhFE2iA5yp7E4QFAmPMHYQTHGdlbWF0b0Bl
-eGFtcGxlLmNvbQAKCRATaIDnKnsThCDWB/95B9njv423M94uRdpPqSNqTpAokNhy
-V0hjnhpiqnY85iFdL1Zc/rvhuxYbZezrig3dqctLseWYcx2mINBTLZqWHk5/NKEm
-rd8iCdXZU1B7yo/HCfzUYR4HX5wISCiRjKimFFgkWKOg7KYGOqqrwLjAjaYJKmL5
-L7R5joHpGbp87jix7c0ruSIMslQg5PbJ6/YAQWyOPTcZvqMFieJ8tqE/G2FabQcs
-YRHEGu1x8wNY40rFzWd90ICR/hPjXZlCdCN2qk7hs+Coasb29n6pXjmt5L8/ICcL
-zApRg8cetid6/SIzUSwiVqBt7i8noYWbgaazNt3HDlGq55v21dkOhmrXiIkEABYI
-ADEWIQR1jj6cjPscaH2bJCVTcI9ps0i0zAUCY8wd6BMcc2Vjb25kQGV4YW1wbGUu
-Y29tAAoJEFNwj2mzSLTMHKcA/0QbVl3PafYp45PFFo2e/knGKJKrm8D4bUH9wS5h
-dchVAP0RSzkUQPP7Zs+2uHQItkqbXJyrBBHOqjGzeh39sWVuAw==
-"""
-
-TWO_SIGNATURE_MANIFEST = f"""
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-{COMMON_MANIFEST_TEXT}
------BEGIN PGP SIGNATURE-----
-
-{TWO_SIGNATURES}
-=wG4b
------END PGP SIGNATURE-----
-"""
+MALFORMED_PUBLIC_KEY = _("malformed-key.txt")
+COMMON_MANIFEST_TEXT = F("Manifest")
+SIGNED_MANIFEST = T("Manifest.asc")
+POST_EXPIRATION_SIGNED_MANIFEST = T("Manifest.asc-post-expiration")
+DASH_ESCAPED_SIGNED_MANIFEST = T("Manifest.asc-dash-escaped")
+MODIFIED_SIGNED_MANIFEST = T("Manifest.asc-modified")
+EXPIRED_SIGNED_MANIFEST = T("Manifest.asc-expired")
+SUBKEY_SIGNED_MANIFEST = T("Manifest.asc-subkey-signed")
+TWO_SIGNATURES = _("two-signatures.bin")
+TWO_SIGNATURE_MANIFEST = T("Manifest.asc-two-signatures")
 
 
 def strip_openpgp(text):
@@ -1155,7 +986,7 @@ def test_verify_detached(tmp_path, key_var, two_sigs):
                 f.write(b"\r\n".join(COMMON_MANIFEST_TEXT.encode("utf8")
                                      .splitlines()))
             with open(tmp_path / "sig.bin", "wb") as f:
-                f.write(base64.b64decode(TWO_SIGNATURES))
+                f.write(TWO_SIGNATURES)
 
             with open(tmp_path / "data.bin", "rb") as f:
                 sig = openpgp_env.verify_detached(

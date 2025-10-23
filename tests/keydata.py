@@ -17,8 +17,12 @@ def _(path: str) -> bytes:
     return data_dir.joinpath(path).read_bytes()
 
 
-def T(path: str) -> str:
+def F(path: str) -> str:
     return data_dir.joinpath(path).read_text().strip()
+
+
+def T(path: str) -> str:
+    return data_dir.joinpath(path).read_text()
 
 
 PUBLIC_KEY = _("first-key/pub")
@@ -52,12 +56,12 @@ OLD_UNEXPIRE_PUBLIC_KEY = PUBLIC_KEY + UID + PUBLIC_KEY_SIG
 UNEXPIRE_PUBLIC_KEY = PUBLIC_KEY + UID + UNEXPIRE_SIG
 
 PRIVATE_KEY = SECRET_KEY + UID + PUBLIC_KEY_SIG
-PRIVATE_KEY_ID = T("first-key/private-key-id.txt")
+PRIVATE_KEY_ID = F("first-key/private-key-id.txt")
 
-KEY_FINGERPRINT = T("first-key/fpr.txt")
-SUBKEY_FINGERPRINT = T("first-key/sub-fpr.txt")
-OTHER_KEY_FINGERPRINT = T("other-key/fpr.txt")
-SECOND_KEY_FINGERPRINT = T("second-key/fpr.txt")
+KEY_FINGERPRINT = F("first-key/fpr.txt")
+SUBKEY_FINGERPRINT = F("first-key/sub-fpr.txt")
+OTHER_KEY_FINGERPRINT = F("other-key/fpr.txt")
+SECOND_KEY_FINGERPRINT = F("second-key/fpr.txt")
 
 OTHER_VALID_PUBLIC_KEY = (OTHER_PUBLIC_KEY + OTHER_PUBLIC_KEY_UID +
                           OTHER_PUBLIC_KEY_SIG)
