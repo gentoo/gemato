@@ -110,6 +110,9 @@ class BaseOpenPGPMixin:
 
         subp.add_argument(
             '-K', '--openpgp-key',
+            action="append",
+            dest="openpgp_keys",
+            default=[],
             help='Use only the OpenPGP key(s) from a specific file')
         subp.add_argument(
             '--proxy',
@@ -126,7 +129,7 @@ class BaseOpenPGPMixin:
 
         # use isolated environment if key is specified;
         # system environment otherwise
-        if args.openpgp_key is not None:
+        if args.openpgp_keys:
             env_class = OpenPGPEnvironment
         else:
             env_class = OpenPGPSystemEnvironment
@@ -134,8 +137,8 @@ class BaseOpenPGPMixin:
                                      proxy=args.proxy,
                                      timeout=args.timeout)
 
-        if args.openpgp_key is not None:
-            with open(args.openpgp_key, 'rb') as f:
+        for key in args.openpgp_keys:
+            with open(key, 'rb') as f:
                 self.openpgp_env.import_key(f)
 
     def cleanup(self):
@@ -170,7 +173,7 @@ class VerifyingOpenPGPMixin(BaseOpenPGPMixin):
     def parse_args(self, args, argp):
         super().parse_args(args, argp)
 
-        if args.openpgp_key is not None:
+        if len(args.openpgp_keys) > 0:
             # always refresh keys to check for revocation
             # (unless user specifically asked us not to)
             if args.refresh_keys:
@@ -684,7 +687,7 @@ class GnuPGWrapCommand(VerifyingOpenPGPMixin, GematoCommand):
     def parse_args(self, args, argp):
         super().parse_args(args, argp)
 
-        if args.openpgp_key is None:
+        if not args.openpgp_keys:
             argp.error('gpg-wrap requires --openpgp-key to be specified')
         self.argv = args.argv
 
