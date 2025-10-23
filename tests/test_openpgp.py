@@ -67,46 +67,52 @@ def T(path: str) -> str:
     return data_dir.joinpath(path).read_text()
 
 
+# == first key (used for most of the tests) ==
 PUBLIC_KEY = _("first-key/pub")
 SECRET_KEY = _("first-key/secret")
+# (subkey optionally used)
 PUBLIC_SUBKEY = _("first-key/subkey")
+# main UID
 UID = _("first-key/uid")
+# UID without email
 UID_NOEMAIL = _("first-key/uid-noemail")
+# UID that's not valid UTF-8
 UID_NONUTF = _("first-key/uid-nonutf")
 
+# UID signatures without expiration date
 PUBLIC_KEY_SIG = _("first-key/uid-sig")
 PUBLIC_KEY_NOEMAIL_SIG = _("first-key/uid-noemail-sig")
 PUBLIC_KEY_NONUTF_SIG = _("first-key/uid-nonutf-sig")
+# subkey signature without expiration date
 PUBLIC_SUBKEY_SIG = _("first-key/subkey-sig")
+# main UID signature that expired
 EXPIRED_KEY_SIG = _("first-key/expired-sig")
+# main UID revocation signature
 REVOCATION_SIG = _("first-key/revocation-sig")
+# main UID signature without expiration that's newer than expired-sig
 UNEXPIRE_SIG = _("first-key/unexpire-sig")
 
+# == other key (used in WKD tests, has the same UID as first key) ==
 OTHER_PUBLIC_KEY = _("other-key/pub")
 OTHER_PUBLIC_KEY_UID = _("other-key/uid")
 OTHER_PUBLIC_KEY_SIG = _("other-key/uid-sig")
 
+# == second key (using different UID) ==
 SECOND_PUBLIC_KEY = _("second-key/pub")
 SECOND_SECRET_KEY = _("second-key/secret")
 SECOND_UID = _("second-key/uid")
 SECOND_KEY_SIG = _("second-key/uid-sig")
 
+# == combined variants of first-key ==
 VALID_PUBLIC_KEY = PUBLIC_KEY + UID + PUBLIC_KEY_SIG
 EXPIRED_PUBLIC_KEY = PUBLIC_KEY + UID + EXPIRED_KEY_SIG
 REVOKED_PUBLIC_KEY = PUBLIC_KEY + REVOCATION_SIG + UID + PUBLIC_KEY_SIG
+# using the original signature to "unexpire" a key should fail
 OLD_UNEXPIRE_PUBLIC_KEY = PUBLIC_KEY + UID + PUBLIC_KEY_SIG
 UNEXPIRE_PUBLIC_KEY = PUBLIC_KEY + UID + UNEXPIRE_SIG
 
 PRIVATE_KEY = SECRET_KEY + UID + PUBLIC_KEY_SIG
 PRIVATE_KEY_ID = F("first-key/private-key-id.txt")
-
-KEY_FINGERPRINT = F("first-key/fpr.txt")
-SUBKEY_FINGERPRINT = F("first-key/sub-fpr.txt")
-OTHER_KEY_FINGERPRINT = F("other-key/fpr.txt")
-SECOND_KEY_FINGERPRINT = F("second-key/fpr.txt")
-
-OTHER_VALID_PUBLIC_KEY = (OTHER_PUBLIC_KEY + OTHER_PUBLIC_KEY_UID +
-                          OTHER_PUBLIC_KEY_SIG)
 
 VALID_KEY_NOEMAIL = PUBLIC_KEY + UID_NOEMAIL + PUBLIC_KEY_NOEMAIL_SIG
 VALID_KEY_NONUTF = PUBLIC_KEY + UID_NONUTF + PUBLIC_KEY_NONUTF_SIG
@@ -114,30 +120,50 @@ VALID_KEY_NONUTF = PUBLIC_KEY + UID_NONUTF + PUBLIC_KEY_NONUTF_SIG
 VALID_KEY_SUBKEY = (PUBLIC_KEY + UID + PUBLIC_KEY_SIG + PUBLIC_SUBKEY +
                     PUBLIC_SUBKEY_SIG)
 
+# first-key with broken signature
 FORGED_PUBLIC_KEY = PUBLIC_KEY + UID + break_sig(PUBLIC_KEY_SIG)
 FORGED_SUBKEY = (PUBLIC_KEY + UID + PUBLIC_KEY_SIG + PUBLIC_SUBKEY +
                  break_sig(PUBLIC_SUBKEY_SIG))
 FORGED_UNEXPIRE_KEY = (PUBLIC_KEY + UID + EXPIRED_KEY_SIG +
                        break_sig(UNEXPIRE_SIG))
 
+# first-key without signatures
 UNSIGNED_PUBLIC_KEY = PUBLIC_KEY + UID
 UNSIGNED_SUBKEY = PUBLIC_KEY + UID + PUBLIC_KEY_SIG + PUBLIC_SUBKEY
 
+# == key fingerprints ==
+KEY_FINGERPRINT = F("first-key/fpr.txt")
+SUBKEY_FINGERPRINT = F("first-key/sub-fpr.txt")
+OTHER_KEY_FINGERPRINT = F("other-key/fpr.txt")
+SECOND_KEY_FINGERPRINT = F("second-key/fpr.txt")
+
+# == combined variants for other-key ==
+OTHER_VALID_PUBLIC_KEY = (OTHER_PUBLIC_KEY + OTHER_PUBLIC_KEY_UID +
+                          OTHER_PUBLIC_KEY_SIG)
 COMBINED_PUBLIC_KEYS = OTHER_VALID_PUBLIC_KEY + VALID_PUBLIC_KEY
 
+# == combined variants for second-key ==
 SECOND_VALID_PUBLIC_KEY = SECOND_PUBLIC_KEY + SECOND_UID + SECOND_KEY_SIG
-
 TWO_SIGNATURE_PUBLIC_KEYS = VALID_PUBLIC_KEY + SECOND_VALID_PUBLIC_KEY
 TWO_KEYS_ONE_EXPIRED = EXPIRED_PUBLIC_KEY + SECOND_VALID_PUBLIC_KEY
 
+# key with CRC error
 MALFORMED_PUBLIC_KEY = _("malformed-key.txt")
+# expected / base Manifest
 COMMON_MANIFEST_TEXT = F("Manifest")
+# Manifest signed before first-key expired
 SIGNED_MANIFEST = T("Manifest.asc")
+# Manifest signed after first-key expired
 POST_EXPIRATION_SIGNED_MANIFEST = T("Manifest.asc-post-expiration")
+# valid Manifest with dash-escaped content
 DASH_ESCAPED_SIGNED_MANIFEST = T("Manifest.asc-dash-escaped")
+# Manifest with modified text (should fail)
 MODIFIED_SIGNED_MANIFEST = T("Manifest.asc-modified")
+# Manifest with expired signature itself
 EXPIRED_SIGNED_MANIFEST = T("Manifest.asc-expired")
+# Manifest signed using the subkey
 SUBKEY_SIGNED_MANIFEST = T("Manifest.asc-subkey-signed")
+# combined signatures from first-key + second-key
 TWO_SIGNATURES = _("two-signatures.bin")
 TWO_SIGNATURE_MANIFEST = T("Manifest.asc-two-signatures")
 
