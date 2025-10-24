@@ -41,5 +41,6 @@ include = [
     "COPYING",
     "tox.ini",
     "tests/*.py",
+    "tests/data",
     "utils",
 ]
