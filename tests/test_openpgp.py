@@ -739,12 +739,16 @@ def test_recursive_manifest_loader_save_submanifest(tmp_path, privkey_env):
 
 @pytest.mark.parametrize(
     'key_var,expected',
-    [('VALID_PUBLIC_KEY', {KEY_FINGERPRINT: ['gemato@example.com']}),
+    [('VALID_PUBLIC_KEY',
+      {KEY_FINGERPRINT: [b"gemato test key <gemato@example.com>"]}),
      ('OTHER_VALID_PUBLIC_KEY',
-      {OTHER_KEY_FINGERPRINT: ['gemato@example.com']}),
-     ('VALID_KEY_SUBKEY', {KEY_FINGERPRINT: ['gemato@example.com']}),
-     ('VALID_KEY_NOEMAIL', {KEY_FINGERPRINT: []}),
-     ('VALID_KEY_NONUTF', {KEY_FINGERPRINT: ['gemato@example.com']}),
+      {OTHER_KEY_FINGERPRINT: [b"gemato test key <gemato@example.com>"]}),
+     ('VALID_KEY_SUBKEY',
+      {KEY_FINGERPRINT: [b"gemato test key <gemato@example.com>"]}),
+     ('VALID_KEY_NOEMAIL',
+      {KEY_FINGERPRINT: [b"gemato test key"]}),
+     ('VALID_KEY_NONUTF',
+      {KEY_FINGERPRINT: [b"gemat\xf6 test key <gemato@example.com>"]}),
      ])
 def test_list_keys(openpgp_env, key_var, expected):
     try:
