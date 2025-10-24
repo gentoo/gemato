@@ -33,6 +33,7 @@ from gemato.exceptions import (
     )
 from gemato.manifest import ManifestFile
 from gemato.openpgp import (
+    GNUPG,
     SystemGPGEnvironment,
     IsolatedGPGEnvironment,
     PGPyEnvironment,
@@ -963,8 +964,8 @@ def signal_desc(sig):
     'command,expected,match',
     [('true', 0, None),
      ('false', 1, None),
-     ('gpg --verify {tmp_path}/Manifest', 0, None),
-     ('gpg --verify {tmp_path}/Manifest.subkey', 2, None),
+     ('{gpg} --verify {tmp_path}/Manifest', 0, None),
+     ('{gpg} --verify {tmp_path}/Manifest.subkey', 2, None),
      ('sh -c "kill $$"', -signal.SIGTERM,
       f'Child process terminated due to signal: '
       f'{signal_desc(signal.SIGTERM)}'),
@@ -980,7 +981,7 @@ def test_cli_gpg_wrap(tmp_path, caplog, command, expected, match):
     with open(tmp_path / 'Manifest.subkey', 'w') as f:
         f.write(SUBKEY_SIGNED_MANIFEST)
 
-    command = [x.replace('{tmp_path}', str(tmp_path))
+    command = [x.replace('{tmp_path}', str(tmp_path)).replace('{gpg}', GNUPG)
                for x in shlex.split(command)]
     retval = gemato.cli.main(['gemato', 'gpg-wrap',
                               '--openpgp-key',
