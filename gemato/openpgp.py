@@ -585,7 +585,6 @@ debug-level guru
                     uid.decode("utf8", errors="replace")
                 )[1])
             }
-            print(key_addrs)
             if not key_addrs:
                 LOGGER.debug(
                     f"refresh_keys_wkd(): failing due to no email addresses "
