@@ -136,7 +136,6 @@ OLD_UNEXPIRE_PUBLIC_KEY = PUBLIC_KEY + UID + PUBLIC_KEY_SIG
 UNEXPIRE_PUBLIC_KEY = PUBLIC_KEY + UID + UNEXPIRE_SIG
 
 PRIVATE_KEY = SECRET_KEY + UID + PUBLIC_KEY_SIG
-PRIVATE_KEY_ID = F("first-key/private-key-id.txt")
 
 VALID_KEY_NOEMAIL = PUBLIC_KEY + UID_NOEMAIL + PUBLIC_KEY_NOEMAIL_SIG
 VALID_KEY_NONUTF = PUBLIC_KEY + UID_NONUTF + PUBLIC_KEY_NONUTF_SIG
@@ -173,8 +172,6 @@ TWO_KEYS_ONE_EXPIRED = EXPIRED_PUBLIC_KEY + SECOND_VALID_PUBLIC_KEY
 
 # key with CRC error
 MALFORMED_PUBLIC_KEY = _("malformed-key.txt")
-# expected / base Manifest
-COMMON_MANIFEST_TEXT = F("Manifest")
 # Manifest signed before first-key expired
 SIGNED_MANIFEST = T("Manifest.asc")
 # Manifest signed after first-key expired
@@ -188,15 +185,19 @@ EXPIRED_SIGNED_MANIFEST = T("Manifest.asc-expired")
 # Manifest signed using the subkey
 SUBKEY_SIGNED_MANIFEST = T("Manifest.asc-subkey-signed")
 # combined signatures from first-key + second-key
-TWO_SIGNATURES = _("two-signatures.bin")
 TWO_SIGNATURE_MANIFEST = T("Manifest.asc-two-signatures")
+
+# expected / base Manifest path (used for 
+MANIFEST_PATH = data_dir / "Manifest"
+# combined signatures from first-key + second-key
+TWO_SIGNATURE_PATH = data_dir / "two-signatures.bin"
 
 
 def strip_openpgp(text):
     lines = text.lstrip().splitlines()
     start = lines.index('')
     stop = lines.index('-----BEGIN PGP SIGNATURE-----')
-    return '\n'.join(lines[start+1:stop-start+2]) + '\n'
+    return '\n'.join(lines[start+1:stop-start+1]) + '\n'
 
 
 @pytest.mark.parametrize('manifest_var',
@@ -389,7 +390,7 @@ def assert_signature(sig: OpenPGPSignatureList,
         assert sorted(sig) == sorted([
             OpenPGPSignatureData(
                 fingerprint=KEY_FINGERPRINT,
-                timestamp=datetime.datetime(2023, 1, 21, 17, 14, 44),
+                timestamp=datetime.datetime(2024, 1, 1),
                 primary_key_fingerprint=KEY_FINGERPRINT,
                 sig_status=OpenPGPSignatureStatus.GOOD,
                 trusted_sig=True,
@@ -397,7 +398,7 @@ def assert_signature(sig: OpenPGPSignatureList,
                 ),
             OpenPGPSignatureData(
                 fingerprint=SECOND_KEY_FINGERPRINT,
-                timestamp=datetime.datetime(2023, 1, 21, 17, 16, 24),
+                timestamp=datetime.datetime(2020, 1, 1),
                 primary_key_fingerprint=SECOND_KEY_FINGERPRINT,
                 sig_status=OpenPGPSignatureStatus.GOOD,
                 trusted_sig=True,
@@ -407,19 +408,19 @@ def assert_signature(sig: OpenPGPSignatureList,
     elif manifest_var == 'SUBKEY_SIGNED_MANIFEST':
         assert len(sig) == 1
         assert sig.fingerprint == SUBKEY_FINGERPRINT
-        assert sig.timestamp == datetime.datetime(2020, 8, 25, 12, 40, 12)
+        assert sig.timestamp == datetime.datetime(2020, 1, 1)
         assert sig.expire_timestamp is None
         assert sig.primary_key_fingerprint == KEY_FINGERPRINT
     elif manifest_var == "POST_EXPIRATION_SIGNED_MANIFEST":
         assert len(sig) == 1
         assert sig.fingerprint == KEY_FINGERPRINT
-        assert sig.timestamp == datetime.datetime(2023, 2, 15, 7, 53, 19)
+        assert sig.timestamp == datetime.datetime(2024, 1, 1)
         assert sig.expire_timestamp is None
         assert sig.primary_key_fingerprint == KEY_FINGERPRINT
     else:
         assert len(sig) == 1
         assert sig.fingerprint == KEY_FINGERPRINT
-        assert sig.timestamp == datetime.datetime(2017, 11, 8, 9, 1, 26)
+        assert sig.timestamp == datetime.datetime(2020, 1, 1)
         assert sig.expire_timestamp is None
         assert sig.primary_key_fingerprint == KEY_FINGERPRINT
 
@@ -655,7 +656,7 @@ def privkey_env(request):
 TEST_STRING = 'The quick brown fox jumps over the lazy dog'
 
 
-@pytest.mark.parametrize('keyid', [None, PRIVATE_KEY_ID])
+@pytest.mark.parametrize('keyid', [None, KEY_FINGERPRINT])
 def test_sign_data(privkey_env, keyid):
     """Test signing data"""
     with io.StringIO(TEST_STRING) as f:
@@ -665,7 +666,7 @@ def test_sign_data(privkey_env, keyid):
             privkey_env.verify_file(wf)
 
 
-@pytest.mark.parametrize('keyid', [None, PRIVATE_KEY_ID])
+@pytest.mark.parametrize('keyid', [None, KEY_FINGERPRINT])
 @pytest.mark.parametrize('sign', [None, False, True])
 def test_dump_signed_manifest(privkey_env, keyid, sign):
     """Test dumping a signed Manifest"""
@@ -1087,15 +1088,9 @@ def test_verify_detached(tmp_path, key_var, two_sigs):
             with io.BytesIO(globals()[key_var]) as f:
                 openpgp_env.import_key(f)
 
-            with open(tmp_path / "data.bin", "wb") as f:
-                f.write(b"\r\n".join(COMMON_MANIFEST_TEXT.encode("utf8")
-                                     .splitlines()))
-            with open(tmp_path / "sig.bin", "wb") as f:
-                f.write(TWO_SIGNATURES)
-
-            with open(tmp_path / "data.bin", "rb") as f:
+            with open(MANIFEST_PATH, "rb") as f:
                 sig = openpgp_env.verify_detached(
-                    tmp_path / "sig.bin", f,
+                    TWO_SIGNATURE_PATH, f,
                     require_all_good=two_sigs)
 
             assert_signature(sig, "TWO_SIGNATURE_MANIFEST",
