@@ -206,7 +206,10 @@ def strip_openpgp(text):
 @cache
 def is_sequoia() -> bool:
     """Return True if GNUPG is sequoia-chameleon-gnupg"""
-    out = subprocess.run([GNUPG, "--version"], capture_output=True)
+    try:
+        out = subprocess.run([GNUPG, "--version"], capture_output=True)
+    except:
+        return False
     return out.returncode == 0 and b"sequoia" in out.stdout
 
 
