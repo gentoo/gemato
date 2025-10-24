@@ -140,7 +140,8 @@ class SystemGPGEnvironment:
         raise NotImplementedError(
             'import_key() is not implemented by this OpenPGP provider')
 
-    def list_keys(self, key_ids: list[str] = []) -> dict[str, list[str]]:
+    def list_keys(self, key_ids: list[str] = []
+                  ) -> dict[str, list[tuple[str, str]]]:
         """
         List fingerprints and UIDs of specified keys or all keys in keyring
 
@@ -182,15 +183,8 @@ class SystemGPGEnvironment:
                     raise OpenPGPKeyListingError(
                         f'UID without key in GPG output: {line}')
                 uid = line.split(b':')[9]
-                _, addr = email.utils.parseaddr(
-                    uid.decode('utf8', errors='replace'))
-                if '@' in addr:
-                    LOGGER.debug(f'list_keys(): UID: {addr}')
-                    ret[fpr].append(addr)
-                else:
-                    LOGGER.debug(
-                        f'list_keys(): ignoring UID without mail: '
-                        f'{uid!r}')
+                LOGGER.debug(f'list_keys(): UID: {uid}')
+                ret[fpr].append(uid)
 
         return ret
 
@@ -571,12 +565,19 @@ debug-level guru
             return False
         addrs = set()
         for key, uids in keys.items():
-            if not uids:
+            key_addrs = {
+                addr for uid in uids
+                if "@" in (addr := email.utils.parseaddr(
+                    uid.decode("utf8", errors="replace")
+                )[1])
+            }
+            print(key_addrs)
+            if not key_addrs:
                 LOGGER.debug(
-                    f'refresh_keys_wkd(): failing due to no UIDs on '
-                    f'key {key}')
+                    f"refresh_keys_wkd(): failing due to no email addresses "
+                    f"on key {key}")
                 return False
-            addrs.update(uids)
+            addrs.update(key_addrs)
         expected_keys = frozenset(keys)
 
         data = b''
