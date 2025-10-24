@@ -9,8 +9,10 @@ import logging
 import os
 import shlex
 import signal
+import subprocess
 import tempfile
 
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -199,6 +201,17 @@ def strip_openpgp(text):
     start = lines.index('')
     stop = lines.index('-----BEGIN PGP SIGNATURE-----')
     return '\n'.join(lines[start+1:stop-start+1]) + '\n'
+
+
+@cache
+def is_sequoia() -> bool:
+    """Return True if GNUPG is sequoia-chameleon-gnupg"""
+    out = subprocess.run([GNUPG, "--version"], capture_output=True)
+    return out.returncode == 0 and b"sequoia" in out.stdout
+
+
+sequoia_xfail = pytest.mark.xfail(is_sequoia(),
+                                  reason="FIXME on sequoia-chameleon-gnupg")
 
 
 @pytest.mark.parametrize('manifest_var',
@@ -657,6 +670,7 @@ def privkey_env(request):
 TEST_STRING = 'The quick brown fox jumps over the lazy dog'
 
 
+@sequoia_xfail
 @pytest.mark.parametrize('keyid', [None, KEY_FINGERPRINT])
 def test_sign_data(privkey_env, keyid):
     """Test signing data"""
@@ -671,6 +685,9 @@ def test_sign_data(privkey_env, keyid):
 @pytest.mark.parametrize('sign', [None, False, True])
 def test_dump_signed_manifest(privkey_env, keyid, sign):
     """Test dumping a signed Manifest"""
+    if sign is not False and is_sequoia():
+        pytest.xfail("FIXME: sequoia-chameleon-gnupg fails to sign")
+
     m = ManifestFile()
     verify = True if sign is None else False
     with io.StringIO(SIGNED_MANIFEST) as f:
@@ -690,6 +707,7 @@ def test_dump_signed_manifest(privkey_env, keyid, sign):
         assert m.openpgp_signature is None
 
 
+@sequoia_xfail
 @pytest.mark.parametrize('filename', ['Manifest', 'Manifest.gz'])
 @pytest.mark.parametrize('sign', [None, True])
 def test_recursive_manifest_loader_save_manifest(tmp_path, privkey_env,
@@ -749,7 +767,10 @@ def test_recursive_manifest_loader_save_submanifest(tmp_path, privkey_env):
      ('VALID_KEY_NOEMAIL',
       {KEY_FINGERPRINT: [b"gemato test key"]}),
      ('VALID_KEY_NONUTF',
-      {KEY_FINGERPRINT: [b"gemat\xf6 test key <gemato@example.com>"]}),
+      {KEY_FINGERPRINT: [
+           b"gemat\\xf6 test key <gemato@example.com>" if is_sequoia()
+           else b"gemat\xf6 test key <gemato@example.com>"
+       ]}),
      ])
 def test_list_keys(openpgp_env, key_var, expected):
     try:
@@ -1037,6 +1058,12 @@ def test_recursive_manifest_loader_require_secure(tmp_path, privkey_env,
      ])
 def test_update_require_secure_cli(base_tree, caplog, hashes_arg,
                                    insecure, sign, require_secure):
+    expected = (1 if insecure is not None and sign != "--no-sign"
+                and require_secure != "--no-require-secure-hashes"
+                else 0)
+    if expected == 0 and is_sequoia():
+        pytest.xfail("FIXME: sequoia-chameleon-gnupg fails to sign")
+
     with open(base_tree / ".key.bin", "wb") as keyf:
         keyf.write(PRIVATE_KEY)
     with open(base_tree / "Manifest", "w") as f:
@@ -1050,9 +1077,6 @@ def test_update_require_secure_cli(base_tree, caplog, hashes_arg,
     if str(OpenPGPNoImplementation('install gpg')) in caplog.text:
         pytest.skip('OpenPGP implementation missing')
 
-    expected = (1 if insecure is not None and sign != "--no-sign"
-                and require_secure != "--no-require-secure-hashes"
-                else 0)
     assert retval == expected
     if expected == 1:
         assert str(ManifestInsecureHashes(insecure)) in caplog.text
