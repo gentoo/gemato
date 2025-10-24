@@ -190,7 +190,7 @@ SUBKEY_SIGNED_MANIFEST = T("Manifest.asc-subkey-signed")
 # combined signatures from first-key + second-key
 TWO_SIGNATURE_MANIFEST = T("Manifest.asc-two-signatures")
 
-# expected / base Manifest path (used for 
+# expected / base Manifest path (used for detached signature tests)
 MANIFEST_PATH = data_dir / "Manifest"
 # combined signatures from first-key + second-key
 TWO_SIGNATURE_PATH = data_dir / "two-signatures.bin"
