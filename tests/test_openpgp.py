@@ -67,6 +67,18 @@ def dash_escape(data: str) -> str:
     )
 
 
+def modify_manifest(data: str) -> str:
+    """Return the "modified" Manifest variation"""
+    return "".join(
+        [
+            x.split(" 0 ", 1)[0] + " 32\n"
+            if x.startswith("DATA")
+            else f"{x}\n"
+            for x in data.splitlines()
+        ]
+    )
+
+
 def _(path: str) -> bytes:
     return data_dir.joinpath(path).read_bytes()
 
@@ -170,7 +182,7 @@ POST_EXPIRATION_SIGNED_MANIFEST = T("Manifest.asc-post-expiration")
 # valid Manifest with dash-escaped content
 DASH_ESCAPED_SIGNED_MANIFEST = dash_escape(SIGNED_MANIFEST)
 # Manifest with modified text (should fail)
-MODIFIED_SIGNED_MANIFEST = T("Manifest.asc-modified")
+MODIFIED_SIGNED_MANIFEST = modify_manifest(SIGNED_MANIFEST)
 # Manifest with expired signature itself
 EXPIRED_SIGNED_MANIFEST = T("Manifest.asc-expired")
 # Manifest signed using the subkey
