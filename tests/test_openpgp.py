@@ -55,6 +55,18 @@ def break_sig(sig):
     return sig[:-1] + b'\x55'
 
 
+def dash_escape(data: str) -> str:
+    """Add dash escapes to Manifest"""
+    return "".join(
+        [
+            f"- {x}\n"
+            if x.startswith(("TIMESTAMP", "MANIFEST", "DATA", "DIST"))
+            else f"{x}\n"
+            for x in data.splitlines()
+        ]
+    )
+
+
 def _(path: str) -> bytes:
     return data_dir.joinpath(path).read_bytes()
 
@@ -156,7 +168,7 @@ SIGNED_MANIFEST = T("Manifest.asc")
 # Manifest signed after first-key expired
 POST_EXPIRATION_SIGNED_MANIFEST = T("Manifest.asc-post-expiration")
 # valid Manifest with dash-escaped content
-DASH_ESCAPED_SIGNED_MANIFEST = T("Manifest.asc-dash-escaped")
+DASH_ESCAPED_SIGNED_MANIFEST = dash_escape(SIGNED_MANIFEST)
 # Manifest with modified text (should fail)
 MODIFIED_SIGNED_MANIFEST = T("Manifest.asc-modified")
 # Manifest with expired signature itself
