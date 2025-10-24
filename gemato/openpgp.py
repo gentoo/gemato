@@ -659,9 +659,27 @@ debug-level guru
         if keyserver is not None:
             ks_args = ['--keyserver', keyserver]
 
+        expected_fprs = set(self.list_keys())
         exitst, out, err = self._spawn_gpg(
-            [GNUPG, '--batch', '--refresh-keys'] + ks_args,
+            [GNUPG, '--batch', '--refresh-keys', '--status-fd', '1'] + ks_args,
             raise_on_error=OpenPGPKeyRefreshError)
+
+        imported_fprs = set()
+        for line in out.splitlines():
+            if line.startswith(b'[GNUPG:] IMPORT_OK'):
+                imported_fprs.add(line.split(b' ')[3].decode('ASCII'))
+
+        if imported_fprs != expected_fprs:
+            extra_keys = imported_fprs - expected_fprs
+            missing_keys = expected_fprs - imported_fprs
+            if extra_keys:
+                raise OpenPGPKeyRefreshError(
+                    f"Keyserver update injected additional keys: {extra_keys}"
+                )
+            if missing_keys:
+                raise OpenPGPKeyRefreshError(
+                    f"Keyserver is missing keys: {missing_keys}"
+                )
 
     def refresh_keys(self, allow_wkd=True, keyserver=None):
         LOGGER.debug(f'refresh_keys(allow_wkd={allow_wkd}, '
