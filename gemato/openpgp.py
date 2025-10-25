@@ -157,30 +157,41 @@ class SystemGPGEnvironment:
         fpr = None
         ret = {}
         for line in out.splitlines():
-            # were we expecting a fingerprint?
-            if prev_pub is not None:
-                if line.startswith(b'fpr:'):
-                    fpr = line.split(b':')[9].decode('ASCII')
-                    if not fpr.endswith(prev_pub):
-                        raise OpenPGPKeyListingError(
-                            f'Incorrect fingerprint {fpr} for key '
-                            f'{prev_pub}')
-                    LOGGER.debug(
-                        f'list_keys(): fingerprint: {fpr}')
-                    ret[fpr] = []
-                    prev_pub = None
-                else:
+            if line.startswith(b"fpr:"):
+                fpr = line.split(b":")[9].decode("ASCII")
+                # this can be subkey fingerprint
+                if prev_pub is None:
+                    continue
+                if not fpr.endswith(prev_pub):
                     raise OpenPGPKeyListingError(
-                        f'No fingerprint in GPG output, instead got: '
-                        f'{line}')
-            elif line.startswith(b'pub:'):
+                        f"Incorrect fingerprint {fpr} for key {prev_pub}"
+                    )
+                LOGGER.debug(
+                    f"list_keys(): fingerprint: {fpr}")
+                ret[fpr] = []
+                prev_pub = None
+            elif line.startswith(b"pub:"):
+                if prev_pub is not None:
+                    raise OpenPGPKeyListingError(
+                        f"New key while waiting for fingerprint: {line} "
+                        f"({prev_pub=})"
+                    )
                 # wait for the fingerprint
-                prev_pub = line.split(b':')[4].decode('ASCII')
-                LOGGER.debug(f'list_keys(): keyid: {prev_pub}')
+                prev_pub = line.split(b":")[4].decode("ASCII")
+                LOGGER.debug(f"list_keys(): keyid: {prev_pub}")
+            elif line.startswith(b"sub:"):
+                if fpr is None:
+                    raise OpenPGPKeyListingError(
+                        "Subkey without prior fingerprint in GPG output: "
+                        f"{line} ({prev_pub=})"
+                    )
+                prev_pub = None
             elif line.startswith(b'uid:'):
                 if fpr is None:
                     raise OpenPGPKeyListingError(
-                        f'UID without key in GPG output: {line}')
+                        f"UID without prior fingerprint in GPG output: {line} "
+                        f"({prev_pub=})"
+                    )
                 uid_split = line.split(b":", 10)
                 uid = uid_split[9]
                 # no creation date means missing/broken self-sig
