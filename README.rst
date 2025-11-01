@@ -11,7 +11,7 @@ gemato provides a reference implementation of the full-tree Manifest
 checks as specified in GLEP 74 [#GLEP74]_. Originally focused
 on verifying the integrity and authenticity of the Gentoo ebuild
 repository, the tool can be used as a generic checksumming tool
-for any directory trees.
+for directory trees.
 
 
 Usage
@@ -39,6 +39,19 @@ create`` command against the top directory of the new Manifest tree::
 
 Note that for the ``create`` command you always need to specify either
 a profile (via ``-p``) or at least a hash set (via ``-H``).
+
+To create OpenPGP signed Manifests::
+
+    gemato create --sign --openpgp-id <YOUR_HSM_ID> \
+      --hashes "SHA256 SHA512" \
+      --timestamp \
+      /path/to/full/tree
+
+This will create a new Manifest file in /path/to/full/tree with a
+clearsign OpenPGP signature.
+
+Note that files that start with a dot are not included in the Manifest
+and are therefore neigher signed nor verified.
 
 
 Updating existing Manifests
@@ -80,6 +93,33 @@ library modules.
 Additionally, OpenPGP requires system install of GnuPG 2.2+
 and requests_ Python module.  Tests require pytest_, and responses_
 for mocking.
+
+API
+===
+
+Gemato may be used in python projects that want to verify a downloaded
+directory tree::
+
+    $ pip install gemato
+ 
+example script::
+
+    import gemato
+    from gemato.exceptions import GematoException
+
+    import logging
+    import os
+    
+    try:
+        gemato_manifest = gemato.recursiveloader.ManifestRecursiveLoader(
+                            os.path.join(os.getcwd(), 'Manifest'),
+                            verify_openpgp=True,
+                            openpgp_env=gemato.openpgp.OpenPGPSystemEnvironment())
+        gemato_manifest.assert_directory_verifies()
+    except GematoException as e:
+        logging.error(e)
+
+See portage/lib/portage/sync/modules/rsync/rsync.py for a more complete example.
 
 
 References and footnotes
