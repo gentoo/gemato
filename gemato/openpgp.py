@@ -21,6 +21,8 @@ import tempfile
 import typing
 import urllib.parse
 import warnings
+import socket
+import functools
 
 from pathlib import Path
 
@@ -101,14 +103,47 @@ ZBASE32_TRANSLATE = bytes.maketrans(
     b'ybndrfg8ejkmcpqxot1uwisza345h769')
 
 
-def get_wkd_url(email):
+def _get_wkd_inputs(email):
     localname, domain = email.split('@', 1)
     b32 = (
         base64.b32encode(
             hashlib.sha1(localname.encode('utf8').lower()).digest())
         .translate(ZBASE32_TRANSLATE).decode('ASCII'))
-    return (f'https://{domain.lower()}/.well-known/openpgpkey/hu/'
-            f'{b32}?l={urllib.parse.quote(localname)}')
+    return localname, domain, b32
+
+
+@functools.lru_cache
+def has_advanced_wkd(domain):
+    subdomain = 'openpgpkey.' + domain.lower()
+    res = socket.getaddrinfo(subdomain, 443,
+                             type=socket.SOCK_STREAM,
+                             proto=socket.IPPROTO_TCP
+                             )
+    return len(res) > 0
+
+
+@functools.lru_cache
+def get_wkd_url(email):
+    # https://datatracker.ietf.org/doc/draft-koch-openpgp-webkey-service/15/
+    # There are two variants on how to form the request URI: The advanced
+    # and the direct method.  Implementations MUST first try the advanced
+    # method.  Only if an address for the required sub-domain does not
+    # exist, they SHOULD fall back to the direct method.
+    #
+    # Translation:
+    # 1. Try to resolve the hostname for advanced method first.
+    # 2. If if does NOT resolve, fall back to direct method.
+    localname, domain, b32 = _get_wkd_inputs(email)
+    if has_advanced_wkd(domain):
+        # https://openpgpkey.example.org/.well-known/openpgpkey/example.org/hu/iy9q119eutrkn8s1mk4r39qejnbu3n5q?l=Joe.Doe
+        return (f'https://openpgpkey.{domain.lower()}/'
+                f'.well-known/openpgpkey/{domain.lower()}/hu/'
+                f'{b32}?l={urllib.parse.quote(localname)}')
+    else:
+        # https://example.org/.well-known/openpgpkey/hu/iy9q119eutrkn8s1mk4r39qejnbu3n5q?l=Joe.Doe
+        return (f'https://{domain.lower()}/'
+                f'.well-known/openpgpkey/hu/'
+                f'{b32}?l={urllib.parse.quote(localname)}')
 
 
 class SystemGPGEnvironment:
