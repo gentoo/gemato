@@ -791,7 +791,7 @@ class PGPyEnvironment:
                 if not vr:
                     raise OpenPGPVerificationFailure(
                         f'Bad signature made by key {k.fingerprint}')
-                now = datetime.datetime.utcnow()
+                now = datetime.datetime.now(datetime.timezone.utc)
                 sig_expire = msg.signatures[0].expires_at
                 if sig_expire is not None and sig_expire < now:
                     raise OpenPGPVerificationFailure(

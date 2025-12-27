@@ -116,7 +116,7 @@ IGNORE packages
     p.map(gen_fast_manifest.gen_manifest, manifest_dir_generator(1), chunksize=64)
 
     # special directories: we split Manifest there, and add timestamp
-    ts = datetime.datetime.utcnow().strftime(
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime(
             'TIMESTAMP %Y-%m-%dT%H:%M:%SZ\n').encode('ascii')
     make_toplevel('metadata/glsa', ts, pgp_key)
     make_toplevel('metadata/news', ts, pgp_key)
@@ -129,7 +129,7 @@ IGNORE packages
     p.map(gen_fast_manifest.gen_manifest, list(manifest_dir_generator(4)))
 
     # final split
-    ts = datetime.datetime.utcnow().strftime(
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime(
             'TIMESTAMP %Y-%m-%dT%H:%M:%SZ\n').encode('ascii')
     make_toplevel('', ts, pgp_key)
 

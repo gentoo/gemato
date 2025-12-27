@@ -783,7 +783,7 @@ DATA test 11 SHA1 561295c9cbf9d6b2f6428414504a8deed3020641
     @classmethod
     def create(cls, tmp_path):
         super().create(tmp_path)
-        future_dt = (datetime.datetime.utcnow() +
+        future_dt = (datetime.datetime.now(datetime.timezone.utc) +
                      datetime.timedelta(days=1))
         with open(tmp_path / 'Manifest', 'w') as f:
             f.write(cls.MANIFESTS['Manifest'].replace(

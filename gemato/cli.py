@@ -453,7 +453,7 @@ class UpdateCommand(BaseUpdateMixin, GematoCommand):
 
             LOGGER.info(f'Updating Manifests in {p}...')
 
-            start_ts = datetime.datetime.utcnow()
+            start_ts = datetime.datetime.now(datetime.timezone.utc)
             m.update_entries_for_directory(relpath, **update_kwargs)
 
             # write TIMESTAMP if requested, or if already there
@@ -509,7 +509,7 @@ class CreateCommand(BaseUpdateMixin, GematoCommand):
 
             LOGGER.info(f'Creating Manifests in {p}...')
 
-            start_ts = datetime.datetime.utcnow()
+            start_ts = datetime.datetime.now(datetime.timezone.utc)
             m.update_entries_for_directory()
 
             # write TIMESTAMP if requested
