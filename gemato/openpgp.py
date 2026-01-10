@@ -374,7 +374,8 @@ class SystemGPGEnvironment:
         """
 
         exitst, out, err = self._spawn_gpg(
-            [GNUPG, '--batch', '--status-fd', '1', '--verify'],
+            [GNUPG, '--batch', '--auto-check-trustdb',
+             '--status-fd', '1', '--verify'],
             f.read().encode('utf8'))
         return self._process_gpg_verify_output(out, err, require_all_good)
 
@@ -398,7 +399,8 @@ class SystemGPGEnvironment:
         """
 
         _, out, err = self._spawn_gpg(
-            [GNUPG, "--batch", "--status-fd", "1", "--verify",
+            [GNUPG, "--batch", "--auto-check-trustdb",
+             "--status-fd", "1", "--verify",
              str(signature_file), "-"],
             stdin_file=data_file)
         return self._process_gpg_verify_output(out, err, require_all_good)
