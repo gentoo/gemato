@@ -96,6 +96,20 @@ class OpenPGPSignatureList(list[OpenPGPSignatureData]):
         return self[0].primary_key_fingerprint
 
 
+@dataclasses.dataclass
+class OpenPGPSubKey:
+    keyid: str
+    created: datetime.datetime | None
+    fingerprint: str = ""
+    expires: datetime.datetime | None = None
+
+
+@dataclasses.dataclass
+class OpenPGPPubKey(OpenPGPSubKey):
+    uids: list[bytes] = dataclasses.field(default_factory=list)
+    subkeys: dict[str, OpenPGPSubKey] = dataclasses.field(default_factory=dict)
+
+
 ZBASE32_TRANSLATE = bytes.maketrans(
     b'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567',
     b'ybndrfg8ejkmcpqxot1uwisza345h769')
@@ -141,7 +155,7 @@ class SystemGPGEnvironment:
             'import_key() is not implemented by this OpenPGP provider')
 
     def list_keys(self, key_ids: list[str] = []
-                  ) -> dict[str, list[tuple[str, str]]]:
+                  ) -> dict[str, OpenPGPPubKey]:
         """
         List fingerprints and UIDs of specified keys or all keys in keyring
 
@@ -153,57 +167,113 @@ class SystemGPGEnvironment:
             [GNUPG, '--batch', '--with-colons', '--list-keys', *key_ids],
             raise_on_error=OpenPGPKeyListingError)
 
-        prev_pub = None
-        fpr = None
-        ret = {}
-        for line in out.splitlines():
-            if line.startswith(b"fpr:"):
-                fpr = line.split(b":")[9].decode("ASCII")
-                # this can be subkey fingerprint
-                if prev_pub is None:
-                    continue
-                if not fpr.endswith(prev_pub):
-                    raise OpenPGPKeyListingError(
-                        f"Incorrect fingerprint {fpr} for key {prev_pub}"
-                    )
-                LOGGER.debug(
-                    f"list_keys(): fingerprint: {fpr}")
-                ret[fpr] = []
-                prev_pub = None
-            elif line.startswith(b"pub:"):
-                if prev_pub is not None:
-                    raise OpenPGPKeyListingError(
-                        f"New key while waiting for fingerprint: {line} "
-                        f"({prev_pub=})"
-                    )
-                # wait for the fingerprint
-                prev_pub = line.split(b":")[4].decode("ASCII")
-                LOGGER.debug(f"list_keys(): keyid: {prev_pub}")
-            elif line.startswith(b"sub:"):
-                if fpr is None:
-                    raise OpenPGPKeyListingError(
-                        "Subkey without prior fingerprint in GPG output: "
-                        f"{line} ({prev_pub=})"
-                    )
-                prev_pub = None
-            elif line.startswith(b'uid:'):
-                if fpr is None:
-                    raise OpenPGPKeyListingError(
-                        f"UID without prior fingerprint in GPG output: {line} "
-                        f"({prev_pub=})"
-                    )
-                uid_split = line.split(b":", 10)
-                uid = uid_split[9]
-                # no creation date means missing/broken self-sig
-                if not uid_split[5]:
-                    LOGGER.debug(
-                        f"list_keys(): skipping UID with missing self-sig: "
-                        f"{fpr=}, {uid=!r}")
-                    continue
-                LOGGER.debug(f'list_keys(): UID: {uid}')
-                ret[fpr].append(uid)
+        pubkeys: dict[str, OpenPGPPubKey] = {}
 
-        return ret
+        current_pub: OpenPGPPubKey | None = None
+        current_sub: OpenPGPSubKey | None = None
+
+        def pub_fpr_waiting(pub: OpenPGPPubKey | None) -> bool:
+            return pub is not None and pub.fingerprint == ""
+
+        def set_fingerprint(ktype: str,
+                            key: OpenPGPSubKey | OpenPGPPubKey,
+                            fpr: str) -> None:
+            if not fpr.endswith(key.keyid):
+                raise OpenPGPKeyListingError(
+                    f"Incorrect fingerprint {fpr} for {ktype} key {key.keyid}"
+                )
+
+            key.fingerprint = fpr
+            LOGGER.debug("list_keys(): %s fingerprint: %r", ktype, fpr)
+
+        for line in out.splitlines():
+            fields = line.split(b":")
+            rec_type = fields[0]
+
+            if rec_type in (b"pub", b"sub"):
+                if pub_fpr_waiting(current_pub) or current_sub is not None:
+                    raise OpenPGPKeyListingError(
+                        f"New key while waiting for fingerprint: {line!r}"
+                    )
+
+                keyid = fields[4].decode("ASCII")
+                created = (
+                    self._parse_gpg_ts(fields[5].decode('utf8'))
+                    if fields[5]
+                    else None
+                )
+                expires = (
+                    self._parse_gpg_ts(fields[6].decode('utf8'))
+                    if fields[6]
+                    else None
+                )
+
+                if rec_type == b"pub":
+                    assert current_sub is None
+
+                    current_pub = OpenPGPPubKey(
+                        keyid=keyid,
+                        created=created,
+                        expires=expires,
+                    )
+                else:  # b"sub"
+                    assert current_sub is None
+
+                    if current_pub is None:
+                        raise OpenPGPKeyListingError(
+                            f"Subkey without public key: {line!r}"
+                        )
+
+                    current_sub = OpenPGPSubKey(
+                        keyid=keyid,
+                        created=created,
+                        expires=expires,
+                    )
+
+                LOGGER.debug(
+                    "list_keys(): %s keyid: %s",
+                    rec_type.decode('ASCII'),
+                    keyid,
+                )
+            elif rec_type == b"fpr":
+                fpr = fields[9].decode("ASCII")
+                if pub_fpr_waiting(current_pub):
+                    set_fingerprint("pub", current_pub, fpr)
+                    pubkeys[fpr] = current_pub
+                elif current_sub is not None:
+                    set_fingerprint("sub", current_sub, fpr)
+                    current_pub.subkeys[fpr] = current_sub
+                    current_sub = None
+                else:
+                    raise OpenPGPKeyListingError(
+                        f"Fingerprint without preceding key: {line!r}"
+                    )
+            elif rec_type == b"uid":
+                if current_pub is None or pub_fpr_waiting(current_pub):
+                    raise OpenPGPKeyListingError(
+                        f"UID without public key: {line!r}"
+                    )
+
+                uid = fields[9]
+
+                if not fields[5]:  # creation date
+                    LOGGER.debug(
+                        "list_keys(): skipping UID with missing self-sig: "
+                        "fingerprint=%r, uid=%r",
+                        current_pub.fingerprint,
+                        uid,
+                    )
+                    continue
+
+                LOGGER.debug("list_keys(): UID: %r", uid)
+                current_pub.uids.append(uid)
+
+        if pub_fpr_waiting(current_pub) or current_sub is not None:
+            raise OpenPGPKeyListingError(
+                "Unexpected end of GPG output while waiting for fingerprint"
+            )
+
+        return pubkeys
 
     def refresh_keys(self, allow_wkd=True, keyserver=None):
         """
@@ -560,7 +630,11 @@ debug-level guru
             raise OpenPGPKeyImportError("No keys imported")
 
         imported = self.list_keys(list(fprs))
-        missing = fprs - {fpr for fpr, uids in imported.items() if uids}
+        missing = fprs - {
+            key.fingerprint
+            for key in imported.values()
+            if key.uids
+        }
         if missing:
             raise OpenPGPKeyImportError(
                 "Import succeeded but no valid key for fingerprints: "
@@ -591,9 +665,9 @@ debug-level guru
             LOGGER.debug('refresh_keys_wkd(): no keys found')
             return False
         addrs = set()
-        for key, uids in keys.items():
+        for key, pub in keys.items():
             key_addrs = {
-                addr for uid in uids
+                addr for uid in pub.uids
                 if "@" in (addr := email.utils.parseaddr(
                     uid.decode("utf8", errors="replace")
                 )[1])
