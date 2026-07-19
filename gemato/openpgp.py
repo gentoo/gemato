@@ -314,6 +314,8 @@ class SystemGPGEnvironment:
                                    ) -> OpenPGPSignatureList:
         """Process the output of gpg --verify and return a siglist"""
 
+        key_expiration_cache: dict[str, datetime.datetime | None] | None = None
+
         sig_list = OpenPGPSignatureList()
         for line in out.splitlines():
             if line.startswith(b'[GNUPG:] NEWSIG'):
@@ -347,12 +349,23 @@ class SystemGPGEnvironment:
                 spl = line.split(b' ')
                 assert len(spl) >= 12
                 sig_list[-1].valid_sig = True
-                sig_list[-1].fingerprint = spl[2].decode('utf8')
+                fingerprint = spl[2].decode('utf8')
+                sig_list[-1].fingerprint = fingerprint
                 sig_list[-1].timestamp = (
                     self._parse_gpg_ts(spl[4].decode('utf8')))
                 sig_list[-1].expire_timestamp = (
                     self._parse_gpg_ts(spl[5].decode('utf8')))
                 sig_list[-1].primary_key_fingerprint = spl[11].decode('utf8')
+                if key_expiration_cache is None:
+                    key_expiration_cache = {}
+                    for pub in self.list_keys().values():
+                        key_expiration_cache[pub.fingerprint] = pub.expires
+                        for sub in pub.subkeys.values():
+                            key_expiration_cache[sub.fingerprint] = sub.expires
+
+                sig_list[-1].key_expiration = (
+                    key_expiration_cache.get(fingerprint)
+                )
             elif line.startswith(b'[GNUPG:] TRUST_'):
                 assert sig_list
                 spl = line.split(b' ', 2)
@@ -361,12 +374,10 @@ class SystemGPGEnvironment:
                               b'TRUST_ULTIMATE'):
                     sig_list[-1].trusted_sig = True
             elif line.startswith(b"[GNUPG:] KEYEXPIRED"):
-                # TODO: will the "correct" key be emitted last?
-                assert sig_list
-                spl = line.split(b" ", 3)
-                assert len(spl) >= 3
-                sig_list[-1].key_expiration = (
-                    self._parse_gpg_ts(spl[2].decode("utf8")))
+                # Ignore KEYEXPIRED because it does not identify
+                # which key expired. Use expiration from imported
+                # key metadata instead.
+                continue
 
         if not sig_list:
             raise OpenPGPUnknownSigFailure(
