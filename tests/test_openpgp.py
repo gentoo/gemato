@@ -43,6 +43,8 @@ from gemato.openpgp import (
     OpenPGPSignatureList,
     OpenPGPSignatureData,
     OpenPGPSignatureStatus,
+    OpenPGPPubKey,
+    OpenPGPSubKey,
     )
 from gemato.recursiveloader import ManifestRecursiveLoader
 
@@ -761,19 +763,76 @@ def test_recursive_manifest_loader_save_submanifest(tmp_path, privkey_env):
 
 @pytest.mark.parametrize(
     'key_var,expected',
-    [('VALID_PUBLIC_KEY',
-      {KEY_FINGERPRINT: [b"gemato test key <gemato@example.com>"]}),
-     ('OTHER_VALID_PUBLIC_KEY',
-      {OTHER_KEY_FINGERPRINT: [b"gemato test key <gemato@example.com>"]}),
-     ('VALID_KEY_SUBKEY',
-      {KEY_FINGERPRINT: [b"gemato test key <gemato@example.com>"]}),
-     ('VALID_KEY_NOEMAIL',
-      {KEY_FINGERPRINT: [b"gemato test key"]}),
-     ('VALID_KEY_NONUTF',
-      {KEY_FINGERPRINT: [
-           b"gemat\\xf6 test key <gemato@example.com>" if is_sequoia()
-           else b"gemat\xf6 test key <gemato@example.com>"
-       ]}),
+    [
+        (
+            'VALID_PUBLIC_KEY', {
+                KEY_FINGERPRINT: OpenPGPPubKey(
+                    fingerprint=KEY_FINGERPRINT,
+                    keyid=KEY_FINGERPRINT[-16:],
+                    created=datetime.datetime(2020, 1, 1),
+                    uids=[
+                        b'gemato test key <gemato@example.com>',
+                    ],
+                ),
+            },
+        ),
+        (
+            'OTHER_VALID_PUBLIC_KEY', {
+                OTHER_KEY_FINGERPRINT: OpenPGPPubKey(
+                    fingerprint=OTHER_KEY_FINGERPRINT,
+                    keyid=OTHER_KEY_FINGERPRINT[-16:],
+                    created=datetime.datetime(2020, 1, 1),
+                    uids=[
+                        b'gemato test key <gemato@example.com>',
+                    ],
+                ),
+            },
+        ),
+        (
+            'VALID_KEY_SUBKEY', {
+                KEY_FINGERPRINT: OpenPGPPubKey(
+                    fingerprint=KEY_FINGERPRINT,
+                    keyid=KEY_FINGERPRINT[-16:],
+                    created=datetime.datetime(2020, 1, 1),
+                    uids=[
+                        b'gemato test key <gemato@example.com>',
+                    ],
+                    subkeys={
+                        SUBKEY_FINGERPRINT: OpenPGPSubKey(
+                            fingerprint=SUBKEY_FINGERPRINT,
+                            keyid=SUBKEY_FINGERPRINT[-16:],
+                            created=datetime.datetime(2020, 1, 1),
+                        ),
+                    },
+                ),
+            },
+        ),
+        (
+            'VALID_KEY_NOEMAIL', {
+                KEY_FINGERPRINT: OpenPGPPubKey(
+                    fingerprint=KEY_FINGERPRINT,
+                    keyid=KEY_FINGERPRINT[-16:],
+                    created=datetime.datetime(2020, 1, 1),
+                    uids=[
+                        b'gemato test key',
+                    ],
+                ),
+                },
+        ),
+        (
+            'VALID_KEY_NONUTF', {
+                KEY_FINGERPRINT: OpenPGPPubKey(
+                    fingerprint=KEY_FINGERPRINT,
+                    keyid=KEY_FINGERPRINT[-16:],
+                    created=datetime.datetime(2020, 1, 1),
+                    uids=[
+                        b"gemat\\xf6 test key <gemato@example.com>"
+                        if is_sequoia() else
+                        b"gemat\xf6 test key <gemato@example.com>",
+                    ],
+                ),
+            },
+        ),
      ])
 def test_list_keys(openpgp_env, key_var, expected):
     try:
