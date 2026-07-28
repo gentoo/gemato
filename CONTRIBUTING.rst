@@ -63,14 +63,24 @@ Contributing
 4. Test your changes using ``tox``.  You usually will also need to add
    a test case, though we can help with that.
 
-5. It's fine (and even preferable for bigger changes) to send
+5. Aim for clearly delineated commits with atomic changes and clear
+   commit messages.  Follow the existing style.  Ensure that all
+   significant information can be found in commits themselves, as pull
+   request description / cover letter will be discarded.  Become friends
+   with ``git rebase`` (see e.g. `git rebase in depth`_).
+
+6. It's fine (and even preferable for bigger changes) to send
    work-in-progress changes for early feedback.  Do not hesitate to ask
    for suggestions or help.
 
+7. If your changes aren't getting any attention, please ping us.  We may
+   have missed them, we may have gotten distracted, or we may simply not
+   have realized that they are ready.  Pinging on one of the `Gentoo IRC
+   channels`_ can be especially helpful.
+
 Changes can be submitted using:
 
-- Codeberg / GitHub pull requests (preferable, when mirrors are
-  available)
+- pull requests to the `GitHub mirror`_ (preferable)
 - patches sent via e-mail to the maintainers
 - patches attached to bug reports
 
@@ -84,3 +94,6 @@ Changes can be submitted using:
 .. _Gentoo Bugzilla: https://bugs.gentoo.org/
 .. _report a bug / feature request: https://bugs.gentoo.org/enter_bug.cgi?product=Gentoo+Linux&component=Current+packages&short_desc=app-portage/gemato:+
 .. _report a security issue: https://bugs.gentoo.org/enter_bug.cgi?product=Gentoo+Security&component=Vulnerabilities&short_desc=app-portage/gemato:+
+.. _git rebase in depth: https://git-rebase.io/
+.. _Gentoo IRC channels: https://www.gentoo.org/get-involved/irc-channels/
+.. _GitHub mirror: https://github.com/gentoo/gemato/
