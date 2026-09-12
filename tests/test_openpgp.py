@@ -1,6 +1,8 @@
 # gemato: OpenPGP signature support tests
-# (c) 2017-2025 Michał Górny
+# (c) 2017-2026 Michał Górny
 # SPDX-License-Identifier: GPL-2.0-or-later
+
+from __future__ import annotations
 
 import contextlib
 import datetime
@@ -1201,3 +1203,15 @@ def test_verify_detached(tmp_path, key_var, two_sigs):
 )
 def test_parse_gpg_ts(value: str, expected: datetime.datetime | None) -> None:
     assert SystemGPGEnvironment._parse_gpg_ts(value) == expected
+
+
+def test_parse_gpg_ts_y2k38() -> None:
+    try:
+        datetime.datetime.utcfromtimestamp(2**31)
+    except OverflowError:
+        expected = datetime.datetime(2038, 1, 19, 3, 14, 8)
+    else:
+        expected = datetime.datetime(2044, 1, 1, 0, 0, 0)
+
+    assert SystemGPGEnvironment._parse_gpg_ts("2335219200",
+                                              allow_overflow=True) == expected

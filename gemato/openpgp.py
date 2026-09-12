@@ -1,5 +1,5 @@
 # gemato: OpenPGP verification support
-# (c) 2017-2024 Michał Górny
+# (c) 2017-2026 Michał Górny
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from __future__ import annotations
@@ -203,7 +203,8 @@ class SystemGPGEnvironment:
                     else None
                 )
                 expires = (
-                    self._parse_gpg_ts(fields[6].decode('utf8'))
+                    self._parse_gpg_ts(fields[6].decode('utf8'),
+                                       allow_overflow=True)
                     if fields[6]
                     else None
                 )
@@ -293,7 +294,9 @@ class SystemGPGEnvironment:
             'refresh_keys() is not implemented by this OpenPGP provider')
 
     @staticmethod
-    def _parse_gpg_ts(ts):
+    def _parse_gpg_ts(ts: str,
+                      allow_overflow: bool = False
+                      ) -> datetime.datetime | None:
         """
         Parse GnuPG status timestamp that can either be time_t value
         or ISO 8601 timestamp.
@@ -306,7 +309,15 @@ class SystemGPGEnvironment:
             # no timestamp
             return None
         else:
-            return datetime.datetime.utcfromtimestamp(int(ts))
+            try:
+                return datetime.datetime.utcfromtimestamp(int(ts))
+            except OverflowError:
+                if allow_overflow:
+                    # For expiration dates, workaround y2k38 overflow.
+                    # Just return 1 second past y2k38 wraparound.
+                    # We will fail once we reach that date anyway.
+                    return datetime.datetime(2038, 1, 19, 3, 14, 8)
+                raise
 
     def _process_gpg_verify_output(self,
                                    out: bytes,
@@ -355,7 +366,8 @@ class SystemGPGEnvironment:
                 sig_list[-1].timestamp = (
                     self._parse_gpg_ts(spl[4].decode('utf8')))
                 sig_list[-1].expire_timestamp = (
-                    self._parse_gpg_ts(spl[5].decode('utf8')))
+                    self._parse_gpg_ts(spl[5].decode('utf8'),
+                                       allow_overflow=True))
                 sig_list[-1].primary_key_fingerprint = spl[11].decode('utf8')
                 if key_expiration_cache is None:
                     key_expiration_cache = {}
