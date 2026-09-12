@@ -1188,3 +1188,16 @@ def test_verify_detached(tmp_path, key_var, two_sigs):
                              expect_both=two_sigs)
     except OpenPGPNoImplementation as e:
         pytest.skip(str(e))
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("20260911T111111", datetime.datetime(2026, 9, 11, 11, 11, 11)),
+        ("20491130T000044", datetime.datetime(2049, 11, 30, 0, 0, 44)),
+        ("1789236730", datetime.datetime(2026, 9, 12, 18, 12, 10)),
+        ("0", None),
+    ]
+)
+def test_parse_gpg_ts(value: str, expected: datetime.datetime | None) -> None:
+    assert SystemGPGEnvironment._parse_gpg_ts(value) == expected

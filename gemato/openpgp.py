@@ -292,7 +292,8 @@ class SystemGPGEnvironment:
         raise NotImplementedError(
             'refresh_keys() is not implemented by this OpenPGP provider')
 
-    def _parse_gpg_ts(self, ts):
+    @staticmethod
+    def _parse_gpg_ts(ts):
         """
         Parse GnuPG status timestamp that can either be time_t value
         or ISO 8601 timestamp.
