@@ -10,6 +10,7 @@ import datetime
 import email.utils
 import enum
 import errno
+import functools
 import hashlib
 import logging
 import math
@@ -451,6 +452,15 @@ class SystemGPGEnvironment:
 
         return sig_list
 
+    @functools.cache
+    def _gpg_proc_all_sigs_arg(self) -> list[str]:
+        """Return [--proc-all-sigs] or [], as necessary"""
+        # GnuPG CLI is a nightmare
+        # this hack seems to work for gpg-sq too
+        exitst, _, _ = self._spawn_gpg(
+            [GNUPG, "--proc-all-sigs", "--version"])
+        return ["--proc-all-sigs"] if exitst == 0 else []
+
     def verify_file(self,
                     f: typing.IO[str],
                     require_all_good: bool = True,
@@ -469,6 +479,7 @@ class SystemGPGEnvironment:
 
         exitst, out, err = self._spawn_gpg(
             [GNUPG, '--batch', '--auto-check-trustdb',
+             *self._gpg_proc_all_sigs_arg(),
              '--status-fd', '1', '--verify'],
             f.read().encode('utf8'))
         return self._process_gpg_verify_output(out, err, require_all_good)
@@ -494,6 +505,7 @@ class SystemGPGEnvironment:
 
         _, out, err = self._spawn_gpg(
             [GNUPG, "--batch", "--auto-check-trustdb",
+             *self._gpg_proc_all_sigs_arg(),
              "--status-fd", "1", "--verify",
              str(signature_file), "-"],
             stdin_file=data_file)
